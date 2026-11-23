@@ -1,0 +1,3 @@
+# Architecture
+
+MembersFlow provides identity through JWT. GameFlow manages profiles, XP, achievements, rankings, challenges and tournaments. Games integrate through a common SDK.
