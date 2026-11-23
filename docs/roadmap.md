@@ -1,15 +1,15 @@
 # Roadmap
 
-The engine comes before games, rankings, and a frontend.
+Milestone 1 is the core event flow. The first game waits until that flow is closed.
 
 - 001 initial domain: done
 - 002 achievement and progression: done
-- 003 event taxonomy and ingestion model: done
-- 004 challenge engine
-- 005 event ingestion API
-- 006 ranking views
-- 007 tournament model
-- 008 first integration SDK
-- 009 Snake MVP
+- 003 event taxonomy: done
+- 004 event ingestion API: done
+- 005 achievement evaluator
+- 006 read models
+- 007 challenge engine
 
-Not before the engine is complete: rankings as tables, tournaments, Pac-Man, Snake, frontend.
+After this milestone: Snake MVP.
+
+Not yet: ranking tables, tournaments, Pac-Man, Snake, frontend. Rankings stay a query when they arrive.

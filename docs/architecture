@@ -8,6 +8,6 @@ GameFlow owns profiles, shared XP, achievements, badges, rankings, challenges, a
 
 Games and other modules are clients of the engine. They are not its center. They do not know which identity provider authenticated the player.
 
-An integration submits a domain event. The vocabulary is closed: event_types. The envelope GameFlow reads is event type, payload, identity, and timestamp. Game codes, scores, quiz ids, and checkpoint ids stay in the payload. GameFlow resolves the identity to a profile, stores the event, and only then produces progress: requirement evaluation, unlocks, and XP transactions. game_profiles.xp is the sum of that ledger. Rankings stay a query over scores.
+An integration submits a domain event. The vocabulary is closed: event_types. The envelope GameFlow reads is event type, payload, identity, and timestamp. Game codes, scores, quiz ids, and checkpoint ids stay in the payload.
 
-There is no ingestion API yet. The storage contract is the event envelope.
+The public inlet is POST /v1/events. It resolves a claimed provider and subject to an existing profile, checks that the event type is active, and appends the event. It does not evaluate achievements, write XP, or prove that the caller holds that identity. Progress remains a later engine step. game_profiles.xp is the sum of the XP ledger. Rankings stay a query over scores.

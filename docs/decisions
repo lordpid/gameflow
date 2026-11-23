@@ -37,3 +37,8 @@ An event is not free text. It is a row in event_types plus an opaque payload, th
 The read model is the envelope: event type, payload, identity, timestamp. Optional links to games or scores are not part of that contract. Recording a score does not grant XP. The progression engine does, from catalog events.
 
 Deactivating a type stops new ingestion. It does not rewrite history.
+# ADR-008
+
+Event ingestion is a claim, not a proof.
+
+POST /v1/events accepts provider and subject, resolves them to an existing identity and profile, and appends one active catalog event. It does not check a JWT, password, or signature. Caller authentication belongs in an adapter in front of this inlet. The endpoint must not grant XP or unlock achievements. Those are a later evaluator, reading the same events.
