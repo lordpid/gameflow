@@ -25,6 +25,14 @@ class EventIn(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=200)
 
 
+def _profile_request_error(database_url: str, provider: str, subject: str) -> JSONResponse | None:
+    if database_url.strip() == "":
+        return JSONResponse({"error": "not_configured"}, status_code=500)
+    if not provider or not subject:
+        return JSONResponse({"error": "invalid_body"}, status_code=422)
+    return None
+
+
 def create_app(database_url: str) -> FastAPI:
     app = FastAPI(title="GameFlow", version="0.1.0")
     app.state.database_url = database_url
@@ -42,11 +50,10 @@ def create_app(database_url: str) -> FastAPI:
 
     @app.get("/v1/profile")
     def get_profile(provider: str, subject: str) -> JSONResponse:
-        if app.state.database_url.strip() == "":
-            return JSONResponse({"error": "not_configured"}, status_code=500)
         provider, subject = provider.strip(), subject.strip()
-        if not provider or not subject:
-            return JSONResponse({"error": "invalid_body"}, status_code=422)
+        error = _profile_request_error(app.state.database_url, provider, subject)
+        if error is not None:
+            return error
 
         with psycopg.connect(app.state.database_url) as conn:
             rows = conn.execute(
@@ -72,6 +79,40 @@ def create_app(database_url: str) -> FastAPI:
                 "profile": {"xp": rows[0][1]},
                 "achievements": [
                     {"code": row[2], "name": row[3]} for row in rows if row[2] is not None
+                ],
+            }
+        )
+
+    @app.get("/v1/profile/progression")
+    def get_progression(provider: str, subject: str) -> JSONResponse:
+        provider, subject = provider.strip(), subject.strip()
+        error = _profile_request_error(app.state.database_url, provider, subject)
+        if error is not None:
+            return error
+
+        with psycopg.connect(app.state.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT p.id, p.xp, t.id, COALESCE(a.code, t.reason), t.amount
+                FROM identity_providers AS ip
+                JOIN identities AS i ON i.provider_id = ip.id
+                LEFT JOIN game_profiles AS p ON p.identity_id = i.id
+                LEFT JOIN xp_transactions AS t ON t.profile_id = p.id
+                LEFT JOIN achievements AS a ON a.id = t.achievement_id
+                WHERE ip.code = %s AND i.external_subject = %s
+                ORDER BY t.created_at, t.id
+                """,
+                (provider, subject),
+            ).fetchall()
+        if not rows:
+            return JSONResponse({"error": "identity_not_found"}, status_code=404)
+        if rows[0][0] is None:
+            return JSONResponse({"error": "profile_not_found"}, status_code=422)
+        return JSONResponse(
+            {
+                "xp": rows[0][1],
+                "transactions": [
+                    {"source": row[3], "xp": row[4]} for row in rows if row[2] is not None
                 ],
             }
         )

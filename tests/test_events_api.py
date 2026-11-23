@@ -252,3 +252,96 @@ def test_profile_read_rejects_missing_identity_profile_and_invalid_input(client,
     )
     assert unconfigured.status_code == 500
     assert unconfigured.json() == {"error": "not_configured"}
+
+
+def test_progression_reads_ledger_and_isolates_profiles(client, database_url):
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            """
+            INSERT INTO identities (provider_id, external_subject)
+            SELECT id, subject FROM identity_providers
+            CROSS JOIN (VALUES ('progression-reader'), ('progression-other')) AS s(subject)
+            WHERE code = 'membersflow'
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO game_profiles (identity_id, display_name)
+            SELECT id, external_subject FROM identities
+            WHERE external_subject IN ('progression-reader', 'progression-other')
+            """
+        )
+
+    params = {"provider": "membersflow", "subject": "progression-reader"}
+    empty = client.get("/v1/profile/progression", params=params)
+    assert empty.status_code == 200
+    assert empty.json() == {"xp": 0, "transactions": []}
+
+    for subject in ("progression-reader", "progression-other"):
+        event = _post(client, "QUIZ_COMPLETED", {"quiz_id": "progression"}, subject=subject)
+        assert event.status_code == 201
+
+    with psycopg.connect(database_url) as conn:
+        conn.execute("UPDATE achievements SET xp_reward = 99 WHERE code = 'FIRST_QUIZ'")
+        conn.execute(
+            """
+            INSERT INTO xp_transactions (profile_id, amount, reason)
+            SELECT p.id, -5, 'adjustment'
+            FROM game_profiles AS p
+            JOIN identities AS i ON i.id = p.identity_id
+            WHERE i.external_subject = 'progression-reader'
+            """
+        )
+
+    try:
+        response = client.get("/v1/profile/progression", params=params)
+    finally:
+        with psycopg.connect(database_url) as conn:
+            conn.execute("UPDATE achievements SET xp_reward = 20 WHERE code = 'FIRST_QUIZ'")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["xp"] == 25
+    assert sorted(data["transactions"], key=lambda transaction: transaction["source"]) == [
+        {"source": "FIRST_EVENT", "xp": 10},
+        {"source": "FIRST_QUIZ", "xp": 20},
+        {"source": "adjustment", "xp": -5},
+    ]
+    assert sum(transaction["xp"] for transaction in data["transactions"]) == data["xp"]
+
+    other = client.get(
+        "/v1/profile/progression",
+        params={"provider": "membersflow", "subject": "progression-other"},
+    )
+    assert other.status_code == 200
+    assert other.json()["xp"] == 30
+    assert len(other.json()["transactions"]) == 2
+
+
+def test_progression_read_rejects_missing_identity_profile_and_invalid_input(client, database_url):
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            """
+            INSERT INTO identities (provider_id, external_subject)
+            SELECT id, 'progression-no-profile' FROM identity_providers WHERE code = 'membersflow'
+            """
+        )
+    missing = client.get(
+        "/v1/profile/progression", params={"provider": "membersflow", "subject": "missing"}
+    )
+    assert missing.status_code == 404
+    assert missing.json() == {"error": "identity_not_found"}
+    no_profile = client.get(
+        "/v1/profile/progression",
+        params={"provider": "membersflow", "subject": "progression-no-profile"},
+    )
+    assert no_profile.status_code == 422
+    assert no_profile.json() == {"error": "profile_not_found"}
+    blank = client.get("/v1/profile/progression", params={"provider": " ", "subject": "123"})
+    assert blank.status_code == 422
+    assert blank.json() == {"error": "invalid_body"}
+    assert client.get("/v1/profile/progression", params={"provider": "membersflow"}).status_code == 422
+    unconfigured = TestClient(create_app("")).get(
+        "/v1/profile/progression", params={"provider": "membersflow", "subject": "123"}
+    )
+    assert unconfigured.status_code == 500
+    assert unconfigured.json() == {"error": "not_configured"}

@@ -8,11 +8,11 @@ Milestone 1 is the core event flow. The first game waits until that flow is clos
 - 004 event ingestion API: done
 - 005 achievement evaluator: done
 - 006 profile read model: done
-- 007 challenge engine model
+- 007 progression read model: done
+- 008 challenge engine model
 
-Future read model: `GET /v1/profile/events` for progression history and the
-XP ledger, including the source and amount of each XP transaction. Its
-contract and authorization are not yet defined.
+Future read model: `GET /v1/profile/events` for event history. Its contract
+and authorization are not yet defined.
 
 After this milestone: Snake MVP.
 

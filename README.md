@@ -21,3 +21,14 @@ trusted adapter that authenticates and authorizes access to the profile.
 Unknown identities return `404 identity_not_found`; identities without a profile
 return `422 profile_not_found`.
 
+## Progression read model
+
+`GET /v1/profile/progression?provider=membersflow&subject=123` returns the
+profile's `xp` and all its ledger transactions, oldest first (ties ordered by
+transaction ID). Each transaction contains `xp`, the amount recorded at the
+time, and `source`: the achievement code when linked to an achievement, or
+the transaction's reason otherwise. Adjustments can be negative.
+
+The same authentication, authorization, and error behavior as the profile
+endpoint applies. This endpoint also requires a trusted adapter.
+
