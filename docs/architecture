@@ -2,6 +2,8 @@
 
 Identity Provider -> GameFlow -> Integrations
 
-GameFlow does not depend on MembersFlow. It accepts an authenticated subject from an identity provider and never interprets that subject. MembersFlow is the first provider and speaks JWT. Later providers can be Google, Microsoft, GitHub, or a private OAuth server.
+GameFlow does not depend on MembersFlow. It accepts an authenticated subject from an identity provider and never interprets that subject. MembersFlow is the first provider and speaks JWT. Later providers can be Google, Microsoft, GitHub, Discord, or a private OAuth server.
 
-GameFlow owns profiles, shared XP, achievements, badges, rankings, challenges, and tournaments. Games and other modules integrate through one SDK contract. They submit facts. They do not write XP and they do not know which identity provider authenticated the player.
+GameFlow owns profiles, shared XP, achievements, badges, rankings, challenges, and tournaments. The player chain is IdentityProvider -> Identity -> GameProfile. See ADR-006.
+
+Games and other modules integrate through one SDK contract. They produce achievement events and score facts. They do not know which identity provider authenticated the player. GameFlow produces progress: it evaluates achievement requirements, records unlocks, and appends XP transactions. game_profiles.xp is the sum of that ledger. Rankings stay a query over scores.

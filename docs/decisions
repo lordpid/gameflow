@@ -17,3 +17,14 @@ GameFlow depends on an identity-provider port, not on MembersFlow.
 The domain key is identities.id. The provider and its external subject are an attribute of that identity. Adding Google, Microsoft, GitHub, or a private OAuth server is a new identity_providers row and an adapter. It is not a migration of game_profiles, scores, or achievements.
 
 MembersFlow remains a valid provider. It is not the product boundary.
+# ADR-006
+
+Player Identity Model.
+
+The heart of the system is not scores, achievements, or games. It is the chain IdentityProvider -> Identity -> GameProfile.
+
+identity_providers is the catalog of authenticators. identities is the GameFlow subject. game_profiles is the player. One identity has one profile. The profile does not store a provider user id. A new authenticator, including Discord, is a row in identity_providers and an adapter. The column is code, not a MembersFlow foreign key.
+
+An organization is context on the profile. It is not an owner and it is not an identity. A profile may have no organization.
+
+Linking two identities to one profile is deferred. Until that decision, a second provider creates a second identity and therefore a second profile. Sharing an email or a display name does not merge players.
