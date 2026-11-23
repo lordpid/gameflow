@@ -1,6 +1,6 @@
 # ADR-001
 
-MembersFlow remains the source of truth for identities and authentication.
+GameFlow does not own identities or authentication. An identity provider does. MembersFlow is the current provider, not a schema dependency. Narrowed by ADR-005.
 # ADR-002
 
 GameFlow must not be tied to any union, school, foundation or company. Organizations are configurable entities.
@@ -10,3 +10,10 @@ XP is shared across quizzes, crosswords, games, city activities, events and futu
 # ADR-004
 
 All games integrate using a standardized SDK contract.
+# ADR-005
+
+GameFlow depends on an identity-provider port, not on MembersFlow.
+
+The domain key is identities.id. The provider and its external subject are an attribute of that identity. Adding Google, Microsoft, GitHub, or a private OAuth server is a new identity_providers row and an adapter. It is not a migration of game_profiles, scores, or achievements.
+
+MembersFlow remains a valid provider. It is not the product boundary.

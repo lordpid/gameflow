@@ -1,1 +1,11 @@
-graph TD; MF[MembersFlow]-->GF[GameFlow]; GF-->Games;
+graph TD
+    IdP[Identity Provider]
+    MF[MembersFlow]
+    Other[Google / Microsoft / GitHub / OAuth]
+    GF[GameFlow]
+    Integrations[Games and other modules]
+
+    MF --> IdP
+    Other --> IdP
+    IdP --> GF
+    GF --> Integrations
