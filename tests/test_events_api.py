@@ -178,3 +178,77 @@ def test_inactive_type_and_key_conflict_are_rejected(client, database_url):
     assert first.status_code == 201
     assert conflict.status_code == 409
     assert conflict.json()["error"] == "idempotency_conflict"
+
+
+def test_profile_read_model_tracks_progress_and_isolates_identities(client, database_url):
+    with psycopg.connect(database_url) as conn:
+        conn.execute("INSERT INTO identity_providers (code, name) VALUES ('other', 'Other')")
+        conn.execute(
+            """
+            INSERT INTO identities (provider_id, external_subject)
+            SELECT id, 'profile-reader' FROM identity_providers
+            WHERE code IN ('membersflow', 'other')
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO game_profiles (identity_id, display_name)
+            SELECT id, 'Reader' FROM identities WHERE external_subject = 'profile-reader'
+            """
+        )
+    params = {"provider": "membersflow", "subject": "profile-reader"}
+    empty = client.get("/v1/profile", params=params)
+    assert empty.status_code == 200
+    assert empty.json() == {
+        "identity": params,
+        "profile": {"xp": 0},
+        "achievements": [],
+    }
+
+    event = _post(client, "QUIZ_COMPLETED", {"quiz_id": "read-model"}, subject="profile-reader")
+    assert event.status_code == 201
+    profile = client.get("/v1/profile", params=params)
+    assert profile.status_code == 200
+    assert profile.json() == {
+        "identity": params,
+        "profile": {"xp": 30},
+        "achievements": [
+            {"code": "FIRST_EVENT", "name": "First event"},
+            {"code": "FIRST_QUIZ", "name": "First quiz"},
+        ],
+    }
+
+    other = client.get("/v1/profile", params={"provider": "other", "subject": "profile-reader"})
+    assert other.status_code == 200
+    assert other.json() == {
+        "identity": {"provider": "other", "subject": "profile-reader"},
+        "profile": {"xp": 0},
+        "achievements": [],
+    }
+
+
+def test_profile_read_rejects_missing_identity_profile_and_invalid_input(client, database_url):
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            """
+            INSERT INTO identities (provider_id, external_subject)
+            SELECT id, 'without-profile' FROM identity_providers WHERE code = 'membersflow'
+            """
+        )
+    missing = client.get("/v1/profile", params={"provider": "membersflow", "subject": "missing"})
+    assert missing.status_code == 404
+    assert missing.json() == {"error": "identity_not_found"}
+    no_profile = client.get(
+        "/v1/profile", params={"provider": "membersflow", "subject": "without-profile"}
+    )
+    assert no_profile.status_code == 422
+    assert no_profile.json() == {"error": "profile_not_found"}
+    blank = client.get("/v1/profile", params={"provider": " ", "subject": "123"})
+    assert blank.status_code == 422
+    assert blank.json() == {"error": "invalid_body"}
+    assert client.get("/v1/profile", params={"provider": "membersflow"}).status_code == 422
+    unconfigured = TestClient(create_app("")).get(
+        "/v1/profile", params={"provider": "membersflow", "subject": "123"}
+    )
+    assert unconfigured.status_code == 500
+    assert unconfigured.json() == {"error": "not_configured"}

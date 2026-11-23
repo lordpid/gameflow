@@ -1,4 +1,4 @@
-"""POST /v1/events. Claimed identity in, one catalog event out."""
+"""Event ingestion and profile reads for claimed identities."""
 
 from __future__ import annotations
 
@@ -39,6 +39,42 @@ def create_app(database_url: str) -> FastAPI:
         except IngestError as exc:
             return JSONResponse({"error": exc.code}, status_code=exc.status)
         return JSONResponse(accepted, status_code=status)
+
+    @app.get("/v1/profile")
+    def get_profile(provider: str, subject: str) -> JSONResponse:
+        if app.state.database_url.strip() == "":
+            return JSONResponse({"error": "not_configured"}, status_code=500)
+        provider, subject = provider.strip(), subject.strip()
+        if not provider or not subject:
+            return JSONResponse({"error": "invalid_body"}, status_code=422)
+
+        with psycopg.connect(app.state.database_url) as conn:
+            rows = conn.execute(
+                """
+                SELECT p.id, p.xp, a.code, a.name
+                FROM identity_providers AS ip
+                JOIN identities AS i ON i.provider_id = ip.id
+                LEFT JOIN game_profiles AS p ON p.identity_id = i.id
+                LEFT JOIN user_achievements AS ua ON ua.profile_id = p.id
+                LEFT JOIN achievements AS a ON a.id = ua.achievement_id
+                WHERE ip.code = %s AND i.external_subject = %s
+                ORDER BY a.code
+                """,
+                (provider, subject),
+            ).fetchall()
+        if not rows:
+            return JSONResponse({"error": "identity_not_found"}, status_code=404)
+        if rows[0][0] is None:
+            return JSONResponse({"error": "profile_not_found"}, status_code=422)
+        return JSONResponse(
+            {
+                "identity": {"provider": provider, "subject": subject},
+                "profile": {"xp": rows[0][1]},
+                "achievements": [
+                    {"code": row[2], "name": row[3]} for row in rows if row[2] is not None
+                ],
+            }
+        )
 
     return app
 
