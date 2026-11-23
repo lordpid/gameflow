@@ -42,6 +42,8 @@ Deactivating a type stops new ingestion. It does not rewrite history.
 Event ingestion is a claim, not a proof.
 
 POST /v1/events accepts provider and subject, resolves them to an existing identity and profile, and appends one active catalog event. It does not check a JWT, password, or signature. Caller authentication belongs in an adapter in front of this inlet.
+
+Superseded for local development by ADR-010. A production authentication and event-trust boundary is still required.
 # ADR-009
 
 The evaluator grants progress. Games do not.
@@ -49,3 +51,6 @@ The evaluator grants progress. Games do not.
 A game submits a catalog event. recalculate() decides whether every requirement of an achievement is satisfied, appends one unlock, and appends one XP transaction for the reward as it stands at grant time. It is deterministic. A second run is a no-op. A tighter rule does not delete an unlock or rewrite the ledger. A looser rule, or a new rule, can be applied to stored events by running recalculate() again.
 
 An achievement with no requirements cannot be unlocked. A requirement with no event type matches any catalog event. Score thresholds in the payload are not a seed rule yet.
+# ADR-010
+
+Development JWT authentication is explicitly isolated from production. A locally issued HS256 token identifies one test subject for the membersflow provider; it is not issued by MembersFlow. The API checks signature, issuer, audience, issued-at, expiry, and subject and rejects requests for another identity. It operates only in explicit development mode with a dedicated secret. This does not authenticate a production MembersFlow user or establish that a self-reported event is true. Production requires a real provider integration and a trusted event-verification design.

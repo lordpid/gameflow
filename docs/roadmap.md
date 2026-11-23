@@ -9,7 +9,9 @@ Milestone 1 is the core event flow. The first game waits until that flow is clos
 - 005 achievement evaluator: done
 - 006 profile read model: done
 - 007 progression read model: done
-- 008 challenge engine model
+- 008 development-only JWT authentication: done
+- 009 production identity integration and trusted event verification
+- 010 challenge engine model
 
 Future read model: `GET /v1/profile/events` for event history. Its contract
 and authorization are not yet defined.

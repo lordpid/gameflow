@@ -1,14 +1,19 @@
 import os
+import secrets
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import jwt
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
 from gameflow.api import create_app
+from gameflow.dev_auth import AUDIENCE, ISSUER
 
 ROOT = Path(__file__).resolve().parents[1]
+TEST_SECRET = secrets.token_urlsafe(48)
 MIGRATIONS = (
     "001_initial_domain.sql",
     "002_achievement_progression.sql",
@@ -61,7 +66,31 @@ def database_url():
 
 @pytest.fixture
 def client(database_url):
-    return TestClient(create_app(database_url))
+    client = TestClient(create_app(database_url, environment="development", dev_jwt_secret=TEST_SECRET))
+    client.headers.update(_auth("123"))
+    return client
+
+
+def _token(subject, **claims):
+    now = datetime.now(timezone.utc)
+    payload = {
+        "iss": ISSUER,
+        "aud": AUDIENCE,
+        "sub": subject,
+        "iat": now,
+        "exp": now + timedelta(minutes=15),
+    }
+    payload.update(claims)
+    return jwt.encode(payload, TEST_SECRET, algorithm="HS256")
+
+
+def _auth(subject):
+    return {"Authorization": f"Bearer {_token(subject)}"}
+
+
+def _get(client, path, params):
+    subject = params.get("subject", "123")
+    return client.get(path, params=params, headers=_auth(subject.strip() or "123"))
 
 
 def _post(client, event_type, payload, **extra):
@@ -73,7 +102,7 @@ def _post(client, event_type, payload, **extra):
         "payload": payload,
     }
     body.update(extra)
-    return client.post("/v1/events", json=body)
+    return client.post("/v1/events", json=body, headers=_auth(body["subject"]))
 
 
 def test_quiz_crossword_and_pacman_are_accepted_and_grant_progress(client, database_url):
@@ -139,6 +168,7 @@ def test_exact_retry_returns_the_same_event(client, database_url):
 def test_unknown_subject_and_unknown_type_are_rejected(client):
     missing = client.post(
         "/v1/events",
+        headers=_auth("missing"),
         json={
             "provider": "membersflow",
             "subject": "missing",
@@ -197,7 +227,7 @@ def test_profile_read_model_tracks_progress_and_isolates_identities(client, data
             """
         )
     params = {"provider": "membersflow", "subject": "profile-reader"}
-    empty = client.get("/v1/profile", params=params)
+    empty = _get(client, "/v1/profile", params)
     assert empty.status_code == 200
     assert empty.json() == {
         "identity": params,
@@ -207,7 +237,7 @@ def test_profile_read_model_tracks_progress_and_isolates_identities(client, data
 
     event = _post(client, "QUIZ_COMPLETED", {"quiz_id": "read-model"}, subject="profile-reader")
     assert event.status_code == 201
-    profile = client.get("/v1/profile", params=params)
+    profile = _get(client, "/v1/profile", params)
     assert profile.status_code == 200
     assert profile.json() == {
         "identity": params,
@@ -218,13 +248,9 @@ def test_profile_read_model_tracks_progress_and_isolates_identities(client, data
         ],
     }
 
-    other = client.get("/v1/profile", params={"provider": "other", "subject": "profile-reader"})
-    assert other.status_code == 200
-    assert other.json() == {
-        "identity": {"provider": "other", "subject": "profile-reader"},
-        "profile": {"xp": 0},
-        "achievements": [],
-    }
+    other = _get(client, "/v1/profile", {"provider": "other", "subject": "profile-reader"})
+    assert other.status_code == 403
+    assert other.json() == {"error": "identity_forbidden"}
 
 
 def test_profile_read_rejects_missing_identity_profile_and_invalid_input(client, database_url):
@@ -235,20 +261,20 @@ def test_profile_read_rejects_missing_identity_profile_and_invalid_input(client,
             SELECT id, 'without-profile' FROM identity_providers WHERE code = 'membersflow'
             """
         )
-    missing = client.get("/v1/profile", params={"provider": "membersflow", "subject": "missing"})
+    missing = _get(client, "/v1/profile", {"provider": "membersflow", "subject": "missing"})
     assert missing.status_code == 404
     assert missing.json() == {"error": "identity_not_found"}
-    no_profile = client.get(
-        "/v1/profile", params={"provider": "membersflow", "subject": "without-profile"}
-    )
+    no_profile = _get(client, "/v1/profile", {"provider": "membersflow", "subject": "without-profile"})
     assert no_profile.status_code == 422
     assert no_profile.json() == {"error": "profile_not_found"}
     blank = client.get("/v1/profile", params={"provider": " ", "subject": "123"})
     assert blank.status_code == 422
     assert blank.json() == {"error": "invalid_body"}
     assert client.get("/v1/profile", params={"provider": "membersflow"}).status_code == 422
-    unconfigured = TestClient(create_app("")).get(
-        "/v1/profile", params={"provider": "membersflow", "subject": "123"}
+    unconfigured = TestClient(
+        create_app("", environment="development", dev_jwt_secret=TEST_SECRET)
+    ).get(
+        "/v1/profile", params={"provider": "membersflow", "subject": "123"}, headers=_auth("123")
     )
     assert unconfigured.status_code == 500
     assert unconfigured.json() == {"error": "not_configured"}
@@ -273,7 +299,7 @@ def test_progression_reads_ledger_and_isolates_profiles(client, database_url):
         )
 
     params = {"provider": "membersflow", "subject": "progression-reader"}
-    empty = client.get("/v1/profile/progression", params=params)
+    empty = _get(client, "/v1/profile/progression", params)
     assert empty.status_code == 200
     assert empty.json() == {"xp": 0, "transactions": []}
 
@@ -294,7 +320,7 @@ def test_progression_reads_ledger_and_isolates_profiles(client, database_url):
         )
 
     try:
-        response = client.get("/v1/profile/progression", params=params)
+        response = _get(client, "/v1/profile/progression", params)
     finally:
         with psycopg.connect(database_url) as conn:
             conn.execute("UPDATE achievements SET xp_reward = 20 WHERE code = 'FIRST_QUIZ'")
@@ -308,9 +334,10 @@ def test_progression_reads_ledger_and_isolates_profiles(client, database_url):
     ]
     assert sum(transaction["xp"] for transaction in data["transactions"]) == data["xp"]
 
-    other = client.get(
+    other = _get(
+        client,
         "/v1/profile/progression",
-        params={"provider": "membersflow", "subject": "progression-other"},
+        {"provider": "membersflow", "subject": "progression-other"},
     )
     assert other.status_code == 200
     assert other.json()["xp"] == 30
@@ -325,14 +352,15 @@ def test_progression_read_rejects_missing_identity_profile_and_invalid_input(cli
             SELECT id, 'progression-no-profile' FROM identity_providers WHERE code = 'membersflow'
             """
         )
-    missing = client.get(
-        "/v1/profile/progression", params={"provider": "membersflow", "subject": "missing"}
+    missing = _get(
+        client, "/v1/profile/progression", {"provider": "membersflow", "subject": "missing"}
     )
     assert missing.status_code == 404
     assert missing.json() == {"error": "identity_not_found"}
-    no_profile = client.get(
+    no_profile = _get(
+        client,
         "/v1/profile/progression",
-        params={"provider": "membersflow", "subject": "progression-no-profile"},
+        {"provider": "membersflow", "subject": "progression-no-profile"},
     )
     assert no_profile.status_code == 422
     assert no_profile.json() == {"error": "profile_not_found"}
@@ -340,8 +368,121 @@ def test_progression_read_rejects_missing_identity_profile_and_invalid_input(cli
     assert blank.status_code == 422
     assert blank.json() == {"error": "invalid_body"}
     assert client.get("/v1/profile/progression", params={"provider": "membersflow"}).status_code == 422
-    unconfigured = TestClient(create_app("")).get(
-        "/v1/profile/progression", params={"provider": "membersflow", "subject": "123"}
+    unconfigured = TestClient(
+        create_app("", environment="development", dev_jwt_secret=TEST_SECRET)
+    ).get(
+        "/v1/profile/progression", params={"provider": "membersflow", "subject": "123"},
+        headers=_auth("123")
     )
     assert unconfigured.status_code == 500
     assert unconfigured.json() == {"error": "not_configured"}
+
+
+@pytest.mark.parametrize("path", ["/v1/profile", "/v1/profile/progression"])
+def test_profile_reads_require_valid_token_and_own_identity(client, path):
+    params = {"provider": "membersflow", "subject": "123"}
+    for token in (
+        "",
+        "not-a-token",
+        _token("123", iss="wrong-issuer"),
+        _token("123", aud="wrong-audience"),
+        _token("123", exp=datetime.now(timezone.utc) - timedelta(seconds=1)),
+        _token(""),
+        jwt.encode(
+            {"iss": ISSUER, "aud": AUDIENCE, "sub": "123", "iat": datetime.now(timezone.utc),
+             "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+            secrets.token_urlsafe(48),
+            algorithm="HS256",
+        ),
+    ):
+        response = client.get(path, params=params, headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 401
+        assert response.json() == {"error": "invalid_token"}
+        assert response.headers["www-authenticate"] == "Bearer"
+
+    forbidden = client.get(path, params=params, headers=_auth("another-player"))
+    assert forbidden.status_code == 403
+    assert forbidden.json() == {"error": "identity_forbidden"}
+
+
+def test_events_cannot_claim_another_identity(client, database_url):
+    with psycopg.connect(database_url) as conn:
+        before = conn.execute("SELECT count(*) FROM achievement_events").fetchone()[0]
+    response = client.post(
+        "/v1/events",
+        headers=_auth("another-player"),
+        json={
+            "provider": "membersflow",
+            "subject": "123",
+            "event_type": "QUIZ_COMPLETED",
+            "occurred_at": "2026-11-21T15:00:00Z",
+            "payload": {},
+        },
+    )
+    assert response.status_code == 403
+    assert response.json() == {"error": "identity_forbidden"}
+    with psycopg.connect(database_url) as conn:
+        assert conn.execute("SELECT count(*) FROM achievement_events").fetchone()[0] == before
+
+
+def test_missing_token_rejected_for_reads_and_events(database_url):
+    client = TestClient(create_app(database_url, environment="development", dev_jwt_secret=TEST_SECRET))
+    for path in ("/v1/profile", "/v1/profile/progression"):
+        response = client.get(path, params={"provider": "membersflow", "subject": "123"})
+        assert response.status_code == 401
+        assert response.json() == {"error": "invalid_token"}
+    event = client.post(
+        "/v1/events",
+        json={
+            "provider": "membersflow",
+            "subject": "123",
+            "event_type": "QUIZ_COMPLETED",
+            "occurred_at": "2026-11-21T15:00:00Z",
+            "payload": {},
+        },
+    )
+    assert event.status_code == 401
+    assert event.json() == {"error": "invalid_token"}
+
+
+def test_development_auth_fails_closed_outside_development(database_url):
+    params = {"provider": "membersflow", "subject": "123"}
+    for environment, secret in (("", TEST_SECRET), ("production", TEST_SECRET), ("development", "")):
+        client = TestClient(create_app(database_url, environment=environment, dev_jwt_secret=secret))
+        response = client.get("/v1/profile", params=params, headers=_auth("123"))
+        assert response.status_code == 503
+        assert response.json() == {"error": "auth_not_configured"}
+        event = client.post(
+            "/v1/events",
+            headers=_auth("123"),
+            json={
+                **params,
+                "event_type": "QUIZ_COMPLETED",
+                "occurred_at": "2026-11-21T15:00:00Z",
+                "payload": {},
+            },
+        )
+        assert event.status_code == 503
+        assert event.json() == {"error": "auth_not_configured"}
+
+
+def test_local_issuer_creates_a_working_token_and_refuses_production(client):
+    env = os.environ.copy()
+    env.update(GAMEFLOW_ENV="development", GAMEFLOW_DEV_JWT_SECRET=TEST_SECRET)
+    issued = subprocess.run(
+        [os.sys.executable, "-m", "gameflow.dev_auth", "123"],
+        env=env, check=True, capture_output=True, text=True,
+    )
+    response = client.get(
+        "/v1/profile",
+        params={"provider": "membersflow", "subject": "123"},
+        headers={"Authorization": f"Bearer {issued.stdout.strip()}"},
+    )
+    assert response.status_code == 200
+    env["GAMEFLOW_ENV"] = "production"
+    refused = subprocess.run(
+        [os.sys.executable, "-m", "gameflow.dev_auth", "123"],
+        env=env, capture_output=True, text=True,
+    )
+    assert refused.returncode != 0
+    assert not refused.stdout

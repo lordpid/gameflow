@@ -7,10 +7,12 @@ from datetime import datetime
 from typing import Any
 
 import psycopg
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, ConfigDict, Field
 
+from gameflow.dev_auth import AuthError, PROVIDER, authenticate, bearer
 from gameflow.ingest import IngestError, ingest_event
 
 
@@ -33,14 +35,33 @@ def _profile_request_error(database_url: str, provider: str, subject: str) -> JS
     return None
 
 
-def create_app(database_url: str) -> FastAPI:
+def create_app(database_url: str, *, environment: str = "", dev_jwt_secret: str = "") -> FastAPI:
     app = FastAPI(title="GameFlow", version="0.1.0")
     app.state.database_url = database_url
+    app.state.environment = environment
+    app.state.dev_jwt_secret = dev_jwt_secret
+
+    @app.exception_handler(AuthError)
+    async def http_error(request: Request, exc: AuthError) -> JSONResponse:
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+
+    def authenticated_subject(
+        request: Request,
+        credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    ) -> str:
+        return authenticate(request, credentials)
+
+    def authorize_identity(provider: str, subject: str, authenticated: str) -> None:
+        if provider.strip() != PROVIDER or subject.strip() != authenticated:
+            raise AuthError(status_code=403, detail="identity_forbidden")
 
     @app.post("/v1/events")
-    def post_event(body: EventIn) -> JSONResponse:
+    def post_event(body: EventIn, authenticated: str = Depends(authenticated_subject)) -> JSONResponse:
         if app.state.database_url.strip() == "":
             return JSONResponse({"error": "not_configured"}, status_code=500)
+        if not body.provider.strip() or not body.subject.strip():
+            return JSONResponse({"error": "invalid_body"}, status_code=422)
+        authorize_identity(body.provider, body.subject, authenticated)
         try:
             with psycopg.connect(app.state.database_url) as conn:
                 accepted, status = ingest_event(conn, body.model_dump())
@@ -49,11 +70,14 @@ def create_app(database_url: str) -> FastAPI:
         return JSONResponse(accepted, status_code=status)
 
     @app.get("/v1/profile")
-    def get_profile(provider: str, subject: str) -> JSONResponse:
+    def get_profile(
+        provider: str, subject: str, authenticated: str = Depends(authenticated_subject)
+    ) -> JSONResponse:
         provider, subject = provider.strip(), subject.strip()
         error = _profile_request_error(app.state.database_url, provider, subject)
         if error is not None:
             return error
+        authorize_identity(provider, subject, authenticated)
 
         with psycopg.connect(app.state.database_url) as conn:
             rows = conn.execute(
@@ -84,11 +108,14 @@ def create_app(database_url: str) -> FastAPI:
         )
 
     @app.get("/v1/profile/progression")
-    def get_progression(provider: str, subject: str) -> JSONResponse:
+    def get_progression(
+        provider: str, subject: str, authenticated: str = Depends(authenticated_subject)
+    ) -> JSONResponse:
         provider, subject = provider.strip(), subject.strip()
         error = _profile_request_error(app.state.database_url, provider, subject)
         if error is not None:
             return error
+        authorize_identity(provider, subject, authenticated)
 
         with psycopg.connect(app.state.database_url) as conn:
             rows = conn.execute(
@@ -120,4 +147,8 @@ def create_app(database_url: str) -> FastAPI:
     return app
 
 
-app = create_app(os.environ.get("DATABASE_URL", ""))
+app = create_app(
+    os.environ.get("DATABASE_URL", ""),
+    environment=os.environ.get("GAMEFLOW_ENV", ""),
+    dev_jwt_secret=os.environ.get("GAMEFLOW_DEV_JWT_SECRET", ""),
+)
