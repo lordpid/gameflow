@@ -13,6 +13,7 @@ MIGRATIONS = (
     "001_initial_domain.sql",
     "002_achievement_progression.sql",
     "003_event_taxonomy.sql",
+    "004_achievement_evaluator.sql",
 )
 
 
@@ -75,7 +76,7 @@ def _post(client, event_type, payload, **extra):
     return client.post("/v1/events", json=body)
 
 
-def test_quiz_crossword_and_pacman_are_accepted_without_progress(client, database_url):
+def test_quiz_crossword_and_pacman_are_accepted_and_grant_progress(client, database_url):
     quiz = _post(client, "QUIZ_COMPLETED", {"quiz_id": "quiz-001"})
     crossword = _post(client, "CROSSWORD_COMPLETED", {"crossword_id": "cw-9"})
     pacman = _post(
@@ -96,8 +97,15 @@ def test_quiz_crossword_and_pacman_are_accepted_without_progress(client, databas
             "SELECT event_type, payload FROM event_envelopes ORDER BY occurred_at, event_type"
         ).fetchall()
         xp = conn.execute("SELECT xp FROM game_profiles").fetchone()[0]
-        transactions = conn.execute("SELECT count(*) FROM xp_transactions").fetchone()[0]
-        unlocks = conn.execute("SELECT count(*) FROM user_achievements").fetchone()[0]
+        transactions = conn.execute("SELECT COALESCE(SUM(amount), 0) FROM xp_transactions").fetchone()[0]
+        codes = conn.execute(
+            """
+            SELECT a.code
+            FROM user_achievements AS ua
+            JOIN achievements AS a ON a.id = ua.achievement_id
+            ORDER BY a.code
+            """
+        ).fetchall()
 
     assert [row[0] for row in envelopes] == [
         "CROSSWORD_COMPLETED",
@@ -105,9 +113,9 @@ def test_quiz_crossword_and_pacman_are_accepted_without_progress(client, databas
         "GAME_FINISHED",
     ]
     assert envelopes[2][1]["score"] == 1230
-    assert xp == 0
-    assert transactions == 0
-    assert unlocks == 0
+    assert [row[0] for row in codes] == ["FIRST_CROSSWORD", "FIRST_EVENT", "FIRST_QUIZ"]
+    assert xp == 50
+    assert transactions == 50
 
 
 def test_exact_retry_returns_the_same_event(client, database_url):

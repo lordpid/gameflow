@@ -1,7 +1,4 @@
-"""Resolve a claimed identity and append one catalog event.
-
-This does not evaluate achievements and does not write XP.
-"""
+"""Resolve a claimed identity and append one catalog event."""
 
 from __future__ import annotations
 
@@ -13,6 +10,8 @@ from typing import Any
 from psycopg import Connection
 from psycopg.errors import UniqueViolation
 from psycopg.types.json import Jsonb
+
+from gameflow.evaluate import recalculate
 
 
 class IngestError(Exception):
@@ -87,6 +86,7 @@ def ingest_event(conn: Connection[Any], body: dict[str, Any]) -> tuple[dict[str,
             inserted = None
 
         if inserted is not None:
+            recalculate(conn, identity[1])
             return _accepted(inserted[0], event_code), 201
 
         existing = conn.execute(
@@ -108,6 +108,7 @@ def ingest_event(conn: Connection[Any], body: dict[str, Any]) -> tuple[dict[str,
         )
         if not same:
             raise IngestError("idempotency_conflict", 409)
+        recalculate(conn, identity[1])
         return _accepted(existing[0], event_code), 200
 
 

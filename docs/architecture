@@ -10,4 +10,4 @@ Games and other modules are clients of the engine. They are not its center. They
 
 An integration submits a domain event. The vocabulary is closed: event_types. The envelope GameFlow reads is event type, payload, identity, and timestamp. Game codes, scores, quiz ids, and checkpoint ids stay in the payload.
 
-The public inlet is POST /v1/events. It resolves a claimed provider and subject to an existing profile, checks that the event type is active, and appends the event. It does not evaluate achievements, write XP, or prove that the caller holds that identity. Progress remains a later engine step. game_profiles.xp is the sum of the XP ledger. Rankings stay a query over scores.
+The public inlet is POST /v1/events. It resolves a claimed provider and subject to an existing profile, checks that the event type is active, and appends the event. It does not prove that the caller holds that identity. After the append, the evaluator grants any newly satisfied achievement and appends XP. It does not revoke. A second run does not duplicate either fact. game_profiles.xp is the sum of the XP ledger. Rankings stay a query over scores.

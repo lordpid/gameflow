@@ -6,8 +6,8 @@ Milestone 1 is the core event flow. The first game waits until that flow is clos
 - 002 achievement and progression: done
 - 003 event taxonomy: done
 - 004 event ingestion API: done
-- 005 achievement evaluator
-- 006 read models
+- 005 achievement evaluator: done
+- 006 profile read model
 - 007 challenge engine
 
 After this milestone: Snake MVP.
