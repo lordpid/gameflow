@@ -6,4 +6,8 @@ GameFlow does not depend on MembersFlow. It accepts an authenticated subject fro
 
 GameFlow owns profiles, shared XP, achievements, badges, rankings, challenges, and tournaments. The player chain is IdentityProvider -> Identity -> GameProfile. See ADR-006.
 
-Games and other modules integrate through one SDK contract. They produce achievement events and score facts. They do not know which identity provider authenticated the player. GameFlow produces progress: it evaluates achievement requirements, records unlocks, and appends XP transactions. game_profiles.xp is the sum of that ledger. Rankings stay a query over scores.
+Games and other modules are clients of the engine. They are not its center. They do not know which identity provider authenticated the player.
+
+An integration submits a domain event. The vocabulary is closed: event_types. The envelope GameFlow reads is event type, payload, identity, and timestamp. Game codes, scores, quiz ids, and checkpoint ids stay in the payload. GameFlow resolves the identity to a profile, stores the event, and only then produces progress: requirement evaluation, unlocks, and XP transactions. game_profiles.xp is the sum of that ledger. Rankings stay a query over scores.
+
+There is no ingestion API yet. The storage contract is the event envelope.
