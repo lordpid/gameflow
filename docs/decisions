@@ -1,0 +1,12 @@
+# ADR-001
+
+MembersFlow remains the source of truth for identities and authentication.
+# ADR-002
+
+GameFlow must not be tied to any union, school, foundation or company. Organizations are configurable entities.
+# ADR-003
+
+XP is shared across quizzes, crosswords, games, city activities, events and future modules.
+# ADR-004
+
+All games integrate using a standardized SDK contract.
