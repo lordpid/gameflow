@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import psycopg
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from gameflow.dev_auth import AuthError, PROVIDER, authenticate, bearer
@@ -40,6 +42,12 @@ def create_app(database_url: str, *, environment: str = "", dev_jwt_secret: str 
     app.state.database_url = database_url
     app.state.environment = environment
     app.state.dev_jwt_secret = dev_jwt_secret
+    static_dir = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def profile_page() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
 
     @app.exception_handler(AuthError)
     async def http_error(request: Request, exc: AuthError) -> JSONResponse:

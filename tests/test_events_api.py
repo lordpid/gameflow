@@ -105,6 +105,20 @@ def _post(client, event_type, payload, **extra):
     return client.post("/v1/events", json=body, headers=_auth(body["subject"]))
 
 
+def test_profile_screen_and_assets_are_available():
+    client = TestClient(create_app(""))
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "Połącz profil testowy" in page.text
+    for path, content_type in (
+        ("/static/style.css", "text/css"),
+        ("/static/profile.js", "text/javascript"),
+    ):
+        asset = client.get(path)
+        assert asset.status_code == 200
+        assert asset.headers["content-type"].startswith(content_type)
+
+
 def test_quiz_crossword_and_pacman_are_accepted_and_grant_progress(client, database_url):
     quiz = _post(client, "QUIZ_COMPLETED", {"quiz_id": "quiz-001"})
     crossword = _post(client, "CROSSWORD_COMPLETED", {"crossword_id": "cw-9"})

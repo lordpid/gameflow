@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Twój profil · GameFlow</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/profile.js" defer></script>
+</head>
+<body>
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="icon-game" viewBox="0 0 24 24"><path d="M7.5 8h9a4 4 0 0 1 3.9 3.2l.8 4.1a2.1 2.1 0 0 1-3.5 2l-2.2-2H8.5l-2.2 2a2.1 2.1 0 0 1-3.5-2l.8-4.1A4 4 0 0 1 7.5 8Z"/><path d="M7 10.5v4M5 12.5h4M16.5 11.5h.01M18 13.5h.01"/></symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+    <symbol id="icon-award" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><path d="m8.5 14-1 7 4.5-2 4.5 2-1-7M12 6.5l.8 1.6 1.8.3-1.3 1.2.3 1.8-1.6-.8-1.6.8.3-1.8-1.3-1.2 1.8-.3z"/></symbol>
+    <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 2 2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-5-5 5 5-5 5"/></symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="GameFlow — profil">
+      <span class="brand-mark"><svg><use href="#icon-game"></use></svg></span>
+      <span><strong>GameFlow</strong><small>Graj. Zdobywaj. Odkrywaj.</small></span>
+    </a>
+    <span class="topbar-label">Twój świat postępów</span>
+    <span class="environment"><span></span> Środowisko testowe</span>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar" aria-label="Nawigacja">
+      <p class="nav-caption">TWOJA PRZESTRZEŃ</p>
+      <a class="nav-item active" href="/" aria-current="page"><svg><use href="#icon-user"></use></svg> Profil</a>
+      <span class="nav-item disabled"><svg><use href="#icon-game"></use></svg> Gry <small>Wkrótce</small></span>
+      <span class="nav-item disabled"><svg><use href="#icon-award"></use></svg> Wyzwania <small>Wkrótce</small></span>
+      <div class="sidebar-note">
+        <svg><use href="#icon-spark"></use></svg>
+        <strong>Każdy krok<br>ma znaczenie.</strong>
+        <p>Twoje osiągnięcia zaczynają się tutaj.</p>
+      </div>
+      <p class="sidebar-footer">GameFlow <span>·</span> Pierwszy krok MVP</p>
+    </aside>
+
+    <main class="content">
+      <div class="page-heading">
+        <div><p class="eyebrow">TWOJA PRZESTRZEŃ <span> / </span> PROFIL</p><h1>Twój profil</h1><p>Wszystkie Twoje postępy w jednym miejscu.</p></div>
+        <button id="disconnect" class="button button-ghost" type="button" hidden>Rozłącz profil</button>
+      </div>
+
+      <section id="connect-panel" class="connect-panel" aria-labelledby="connect-title">
+        <div class="connect-visual">
+          <div class="visual-orbit orbit-one"></div><div class="visual-orbit orbit-two"></div>
+          <div class="visual-icon"><svg><use href="#icon-user"></use></svg></div>
+          <p class="eyebrow">WITAJ W GAMEFLOW</p>
+          <h2>Twój postęp<br><span>zaczyna się tutaj.</span></h2>
+          <p>Połącz testowy profil, aby zobaczyć swoje XP, osiągnięcia i historię postępów.</p>
+          <div class="visual-tags"><span>✦ Twój profil</span><span>✦ Twoje osiągnięcia</span></div>
+        </div>
+        <div class="connect-form">
+          <div class="section-icon"><svg><use href="#icon-lock"></use></svg></div>
+          <h2 id="connect-title">Połącz profil testowy</h2>
+          <p>Użyj identyfikatora oraz tokenu wygenerowanego dla środowiska developerskiego.</p>
+          <form id="connect-form">
+            <label for="subject">Identyfikator gracza</label>
+            <input id="subject" name="subject" type="text" placeholder="np. demo-player" autocomplete="off" required>
+            <label for="token">Token testowy</label>
+            <input id="token" name="token" type="password" placeholder="Wklej token JWT" autocomplete="off" required>
+            <p class="form-hint">Token pozostaje tylko w pamięci tej karty i znika po jej zamknięciu.</p>
+            <p id="form-error" class="error" role="alert" hidden></p>
+            <button id="connect-button" class="button button-primary" type="submit">Pokaż mój profil <svg><use href="#icon-arrow"></use></svg></button>
+          </form>
+          <div class="test-notice"><svg><use href="#icon-spark"></use></svg><span><strong>To wczesna wersja GameFlow.</strong><br>Logowanie MembersFlow pojawi się później.</span></div>
+        </div>
+      </section>
+
+      <div id="dashboard" hidden>
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy"><p class="eyebrow">TWOJA PRZYGODA TRWA</p><h2 id="hero-title">Miło Cię widzieć!</h2><p>Każde osiągnięcie to kolejny krok. Sprawdź, jak daleko już jesteś.</p><span class="hero-badge"><svg><use href="#icon-spark"></use></svg> Twój postęp, Twoja historia</span></div>
+          <div class="hero-art" aria-hidden="true"><div class="hero-orbit"></div><span class="hero-star star-one">✦</span><span class="hero-star star-two">✧</span><span class="hero-medal">★</span></div>
+        </section>
+        <div class="stats">
+          <article class="stat-card"><span class="stat-icon blue"><svg><use href="#icon-spark"></use></svg></span><div><p>Łącznie XP</p><strong id="xp-value">0</strong><small>Twój dotychczasowy postęp</small></div></article>
+          <article class="stat-card"><span class="stat-icon gold"><svg><use href="#icon-award"></use></svg></span><div><p>Osiągnięcia</p><strong id="achievement-count">0</strong><small>Odblokowane przez Ciebie</small></div></article>
+          <article class="stat-card identity-card"><span class="stat-icon violet"><svg><use href="#icon-user"></use></svg></span><div><p>Twój profil</p><strong id="identity-value"></strong><small>Identyfikator testowy</small></div></article>
+        </div>
+        <div class="dashboard-grid">
+          <section class="panel" aria-labelledby="achievements-title">
+            <div class="panel-heading"><div><p class="eyebrow">TWOJE SUKCESY</p><h2 id="achievements-title">Osiągnięcia</h2><p>Każdy sukces zasługuje na miejsce tutaj.</p></div><span class="panel-icon gold"><svg><use href="#icon-award"></use></svg></span></div>
+            <ul id="achievements" class="item-list"></ul>
+            <div id="achievements-empty" class="empty-state" hidden><span>✦</span><strong>Twoja przygoda dopiero się zaczyna</strong><p>Gdy zdobędziesz pierwsze osiągnięcie, pojawi się właśnie tutaj.</p></div>
+          </section>
+          <section class="panel" aria-labelledby="transactions-title">
+            <div class="panel-heading"><div><p class="eyebrow">TWOJA DROGA</p><h2 id="transactions-title">Historia XP</h2><p>Zobacz, skąd pochodzi Twój postęp.</p></div><span class="panel-icon blue"><svg><use href="#icon-clock"></use></svg></span></div>
+            <ul id="transactions" class="item-list"></ul>
+            <div id="transactions-empty" class="empty-state" hidden><span>✧</span><strong>Tu pojawi się Twoja historia</strong><p>Zdobyte punkty i korekty zobaczysz w tym miejscu.</p></div>
+          </section>
+        </div>
+        <p id="dashboard-error" class="error dashboard-error" role="alert" hidden></p>
+        <button id="refresh" class="button button-ghost refresh" type="button">Odśwież postęp</button>
+      </div>
+      <footer class="footer"><span>Małe kroki tworzą wielkie osiągnięcia.</span><strong>— GameFlow</strong></footer>
+    </main>
+  </div>
+</body>
+</html>

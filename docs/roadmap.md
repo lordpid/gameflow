@@ -10,6 +10,7 @@ Milestone 1 is the core event flow. The first game waits until that flow is clos
 - 006 profile read model: done
 - 007 progression read model: done
 - 008 development-only JWT authentication: done
+- Development profile screen: done (test API only)
 - 009 production identity integration and trusted event verification
 - 010 challenge engine model
 
@@ -18,4 +19,4 @@ and authorization are not yet defined.
 
 After this milestone: Snake MVP.
 
-Not yet: ranking tables, tournaments, Pac-Man, Snake, frontend. Rankings stay a query when they arrive.
+Not yet: ranking tables, tournaments, Pac-Man, Snake, production frontend authentication. Rankings stay a query when they arrive.

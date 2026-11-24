@@ -9,6 +9,47 @@ Universal gamification platform for achievements, rankings, progression, tournam
 - Event Driven
 - Reusable Components
 
+## Development profile screen
+
+The test profile screen is served at `/`. It shows actual XP, unlocked
+achievements, and XP transactions from the API. It is not a MembersFlow
+login; games, challenges, rankings, and levels are not implemented.
+
+For a local demonstration, install the project (`pip install -e '.[dev]'`)
+and prepare a **new, isolated** PostgreSQL database:
+
+```sh
+createdb gameflow_dev
+export DATABASE_URL="dbname=gameflow_dev"
+for migration in db/001_initial_domain.sql db/002_achievement_progression.sql db/003_event_taxonomy.sql db/004_achievement_evaluator.sql; do
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+done
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+WITH identity AS (
+    INSERT INTO identities (provider_id, external_subject)
+    SELECT id, 'demo-player' FROM identity_providers WHERE code = 'membersflow'
+    RETURNING id
+)
+INSERT INTO game_profiles (identity_id, display_name)
+SELECT id, 'Demo' FROM identity;
+SQL
+```
+
+In the same shell, configure a dedicated random test secret, generate a
+15-minute token, and run the server:
+
+```sh
+export GAMEFLOW_ENV=development
+export GAMEFLOW_DEV_JWT_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+python -m gameflow.dev_auth demo-player
+uvicorn gameflow.api:app --host 127.0.0.1 --port 8000
+```
+
+Open `http://127.0.0.1:8000/`, enter `demo-player`, and paste the token.
+The token remains in the browser tab's memory only. The new profile initially
+has no XP or achievements. See the security limitations below; do not use
+this setup with a production database or expose it publicly.
+
 ## Profile read model
 
 `GET /v1/profile?provider=membersflow&subject=123` returns the claimed identity,
